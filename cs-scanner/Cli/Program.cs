@@ -69,7 +69,12 @@ public static class Program
 
             if (result.DataMembers is { Length: > 0 })
             {
-                var dmJson = JsonSerializer.Serialize(new { type = result.Type, name = result.Name, dataMembers = result.DataMembers });
+                var dmJson = JsonSerializer.Serialize(new
+                {
+                    type = result.Type,
+                    name = result.Name,
+                    dataMembers = result.DataMembers.Select(static m => new { name = m.Name, type = m.Type })
+                });
                 await dmWriter.WriteLineAsync(dmJson).ConfigureAwait(false);
                 await dmWriter.FlushAsync().ConfigureAwait(false);
             }

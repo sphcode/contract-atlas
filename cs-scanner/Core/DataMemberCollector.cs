@@ -8,15 +8,23 @@ namespace ContractScanner.Core;
 internal static class DataMemberCollector
 {
     private const string DataMemberAttribute = "global::System.Runtime.Serialization.DataMemberAttribute";
+    private static readonly SymbolDisplayFormat MemberTypeFormat = new(
+        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
+        miscellaneousOptions:
+            SymbolDisplayMiscellaneousOptions.UseSpecialTypes |
+            SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers |
+            SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
-    public static string[]? CollectMembers(string contractType, INamedTypeSymbol typeSymbol)
+    public static DataMemberInfo[]? CollectMembers(string contractType, INamedTypeSymbol typeSymbol)
     {
         if (!string.Equals(contractType, "DataContract", StringComparison.Ordinal))
         {
             return null;
         }
 
-        var members = new List<string>();
+        var members = new List<DataMemberInfo>();
         foreach (var memberSymbol in typeSymbol.GetMembers())
         {
             if (memberSymbol is IFieldSymbol or IPropertySymbol)
@@ -25,7 +33,9 @@ internal static class DataMemberCollector
                 {
                     if (IsDataMemberAttribute(attr))
                     {
-                        members.Add(memberSymbol.Name);
+                        members.Add(new DataMemberInfo(
+                            memberSymbol.Name,
+                            GetMemberTypeName(memberSymbol)));
                         break;
                     }
                 }
@@ -54,5 +64,17 @@ internal static class DataMemberCollector
             || string.Equals(syntaxName, "DataMemberAttribute", StringComparison.Ordinal)
             || syntaxName.EndsWith(".DataMember", StringComparison.Ordinal)
             || syntaxName.EndsWith(".DataMemberAttribute", StringComparison.Ordinal);
+    }
+
+    private static string GetMemberTypeName(ISymbol memberSymbol)
+    {
+        var typeSymbol = memberSymbol switch
+        {
+            IFieldSymbol field => field.Type,
+            IPropertySymbol property => property.Type,
+            _ => null
+        };
+
+        return typeSymbol?.ToDisplayString(MemberTypeFormat) ?? "unknown";
     }
 }
