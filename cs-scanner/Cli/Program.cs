@@ -63,7 +63,19 @@ public static class Program
         var scanner = new CoreScanner();
         await scanner.ScanAsync(inputPath, async result =>
         {
-            var json = JsonSerializer.Serialize(new { type = result.Type, name = result.Name });
+            object contractRow = result.EnumMembers is { Length: > 0 }
+                ? new
+                {
+                    type = result.Type,
+                    name = result.Name,
+                    enumMembers = result.EnumMembers.Select(static m => new { name = m.Name, value = m.Value })
+                }
+                : new
+                {
+                    type = result.Type,
+                    name = result.Name
+                };
+            var json = JsonSerializer.Serialize(contractRow);
             await outWriter.WriteLineAsync(json).ConfigureAwait(false);
             await outWriter.FlushAsync().ConfigureAwait(false);
 

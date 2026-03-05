@@ -115,21 +115,25 @@ public sealed class ContractScanner
                     continue;
                 }
 
-                var match = ContractAttributeMatcher.GetMatch(namedType);
-                if (match is null)
+                var matchedType = namedType.TypeKind == TypeKind.Enum
+                    ? "Enum"
+                    : ContractAttributeMatcher.GetMatch(namedType)?.Type;
+
+                if (matchedType is null)
                 {
                     continue;
                 }
 
                 var name = namedType.ToDisplayString(TypeNameFormat);
-                var key = $"{match.Value.Type}|{name}";
+                var key = $"{matchedType}|{name}";
                 if (!seen.Add(key))
                 {
                     continue;
                 }
 
-                var membersArray = DataMemberCollector.CollectMembers(match.Value.Type, namedType);
-                await onResult(new ScanResult(match.Value.Type, name, membersArray)).ConfigureAwait(false);
+                var membersArray = DataMemberCollector.CollectMembers(matchedType, namedType);
+                var enumMembers = EnumMemberCollector.Collect(namedType);
+                await onResult(new ScanResult(matchedType, name, membersArray, enumMembers)).ConfigureAwait(false);
                 matches++;
             }
         }
