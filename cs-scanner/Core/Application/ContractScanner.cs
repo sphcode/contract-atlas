@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ContractScanner.Core.Domain.Models;
+using ContractScanner.Core.Infrastructure.InputDiscovery;
 using ContractScanner.Core.Infrastructure.Roslyn;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -22,63 +23,116 @@ public sealed class ContractScanner
         miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
     public async Task ScanAsync(
-        string solutionOrProjectPath,
+        string inputPath,
         Func<ScanResult, Task> onResult,
+        bool recursiveForDirectory = true,
         Action<string>? log = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(solutionOrProjectPath))
-        {
-            throw new InvalidDataException("Solution or project path is required.");
-        }
-
         if (onResult is null)
         {
             throw new InvalidDataException("onResult callback is required.");
         }
 
-        using var workspace = MSBuildWorkspace.Create();
-        workspace.WorkspaceFailed += (_, args) =>
-        {
-            log?.Invoke($"Workspace {args.Diagnostic.Kind}: {args.Diagnostic.Message}");
-        };
+        var targets = ScanInputResolver.Resolve(inputPath, recursiveForDirectory);
 
         var seen = new HashSet<string>();
         var totalMatches = 0;
 
-        log?.Invoke($"Start scanning: {solutionOrProjectPath}");
+        log?.Invoke($"Start scanning: {inputPath}");
+        log?.Invoke($"Resolved scan targets: count={targets.Count}");
 
-        if (solutionOrProjectPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
+        MSBuildWorkspace? workspace = null;
+        try
         {
-            var solution = await workspace.OpenSolutionAsync(
-                solutionOrProjectPath,
-                progress: null,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-            log?.Invoke($"Loaded solution: {solution.FilePath ?? solutionOrProjectPath}, projects={solution.Projects.Count()}");
-            foreach (var project in solution.Projects)
+            foreach (var target in targets)
             {
-                log?.Invoke($"Scanning project: {project.Name}, documents={project.Documents.Count()}");
-                var projectMatches = await ScanProjectAsync(project, onResult, seen, cancellationToken).ConfigureAwait(false);
-                totalMatches += projectMatches;
-                log?.Invoke($"Project complete: {project.Name}, matchedContracts={projectMatches}");
+                if (target.Kind == ScanInputKind.CSharpDirectory)
+                {
+                    var fileMatches = await ScanDirectoryAsync(
+                        target.Path,
+                        target.Recursive,
+                        onResult,
+                        seen,
+                        log,
+                        cancellationToken).ConfigureAwait(false);
+                    totalMatches += fileMatches;
+                    continue;
+                }
+
+                workspace ??= CreateWorkspace(log);
+                if (target.Kind == ScanInputKind.Solution)
+                {
+                    var matched = await ScanSolutionAsync(target.Path, workspace, onResult, seen, log, cancellationToken).ConfigureAwait(false);
+                    totalMatches += matched;
+                    continue;
+                }
+
+                var projectMatched = await ScanProjectFileAsync(target.Path, workspace, onResult, seen, log, cancellationToken).ConfigureAwait(false);
+                totalMatches += projectMatched;
             }
         }
-        else if (solutionOrProjectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+        finally
         {
-            var project = await workspace.OpenProjectAsync(
-                solutionOrProjectPath,
-                progress: null,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-            log?.Invoke($"Loaded project: {project.Name}, documents={project.Documents.Count()}");
-            totalMatches = await ScanProjectAsync(project, onResult, seen, cancellationToken).ConfigureAwait(false);
-            log?.Invoke($"Project complete: {project.Name}, matchedContracts={totalMatches}");
-        }
-        else
-        {
-            throw new InvalidDataException("Input path must be a .sln or .csproj file.");
+            workspace?.Dispose();
         }
 
         log?.Invoke($"Scan complete: matchedContracts={totalMatches}");
+    }
+
+    private static MSBuildWorkspace CreateWorkspace(Action<string>? log)
+    {
+        var workspace = MSBuildWorkspace.Create();
+        workspace.WorkspaceFailed += (_, args) =>
+        {
+            log?.Invoke($"Workspace {args.Diagnostic.Kind}: {args.Diagnostic.Message}");
+        };
+        return workspace;
+    }
+
+    private static async Task<int> ScanSolutionAsync(
+        string solutionPath,
+        MSBuildWorkspace workspace,
+        Func<ScanResult, Task> onResult,
+        HashSet<string> seen,
+        Action<string>? log,
+        CancellationToken cancellationToken)
+    {
+        var matched = 0;
+        var solution = await workspace.OpenSolutionAsync(
+            solutionPath,
+            progress: null,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        log?.Invoke($"Loaded solution: {solution.FilePath ?? solutionPath}, projects={solution.Projects.Count()}");
+        foreach (var project in solution.Projects)
+        {
+            log?.Invoke($"Scanning project: {project.Name}, documents={project.Documents.Count()}");
+            var projectMatches = await ScanProjectAsync(project, onResult, seen, cancellationToken).ConfigureAwait(false);
+            matched += projectMatches;
+            log?.Invoke($"Project complete: {project.Name}, matchedContracts={projectMatches}");
+        }
+
+        return matched;
+    }
+
+    private static async Task<int> ScanProjectFileAsync(
+        string projectPath,
+        MSBuildWorkspace workspace,
+        Func<ScanResult, Task> onResult,
+        HashSet<string> seen,
+        Action<string>? log,
+        CancellationToken cancellationToken)
+    {
+        var project = await workspace.OpenProjectAsync(
+            projectPath,
+            progress: null,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        log?.Invoke($"Loaded project: {project.Name}, documents={project.Documents.Count()}");
+
+        var matched = await ScanProjectAsync(project, onResult, seen, cancellationToken).ConfigureAwait(false);
+        log?.Invoke($"Project complete: {project.Name}, matchedContracts={matched}");
+        return matched;
     }
 
     private static async Task<int> ScanProjectAsync(
@@ -137,6 +191,40 @@ public sealed class ContractScanner
                 var enumMembers = EnumMemberCollector.Collect(namedType);
                 var operationContracts = ServiceContractOperationCollector.CollectOperations(matchedType, namedType);
                 await onResult(new ScanResult(matchedType, name, membersArray, enumMembers, operationContracts)).ConfigureAwait(false);
+                matches++;
+            }
+        }
+
+        return matches;
+    }
+
+    private static async Task<int> ScanDirectoryAsync(
+        string directoryPath,
+        bool recursive,
+        Func<ScanResult, Task> onResult,
+        HashSet<string> seen,
+        Action<string>? log,
+        CancellationToken cancellationToken)
+    {
+        var files = ScanInputResolver.ResolveCSharpFiles(directoryPath, recursive);
+        log?.Invoke($"Scanning C# files from directory: {directoryPath}, recursive={recursive}, files={files.Count}");
+
+        var matches = 0;
+        foreach (var file in files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var source = await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false);
+            var results = SyntaxContractExtractor.Extract(source);
+            foreach (var result in results)
+            {
+                var key = $"{result.Type}|{result.Name}";
+                if (!seen.Add(key))
+                {
+                    continue;
+                }
+
+                await onResult(result).ConfigureAwait(false);
                 matches++;
             }
         }

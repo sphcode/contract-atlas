@@ -15,20 +15,25 @@ public static class Program
     {
         if (args.Length < 1)
         {
-            Console.Error.WriteLine("Usage: scanner <solutionOrProjectPath> [--verbose]");
+            Console.Error.WriteLine("Usage: scanner <solution.sln|project.csproj|directory> [--verbose] [--recursive true|false]");
             return 1;
         }
 
         var inputPath = args[0];
         var verbose = args.Any(static arg => string.Equals(arg, "--verbose", StringComparison.OrdinalIgnoreCase));
+        if (!TryParseRecursiveOption(args, out var recursive, out var recursiveError))
+        {
+            Console.Error.WriteLine(recursiveError);
+            return 3;
+        }
 
         // Hardcoded output paths (JSONL)
         var outputPath = Path.GetFullPath("contracts.jsonl");
         var dataMembersPath = Path.GetFullPath("data-members.jsonl");
 
-        if (!File.Exists(inputPath))
+        if (!File.Exists(inputPath) && !Directory.Exists(inputPath))
         {
-            Console.Error.WriteLine($"Input file not found: {inputPath}");
+            Console.Error.WriteLine($"Input path not found: {inputPath}");
             return 2;
         }
 
@@ -80,9 +85,51 @@ public static class Program
                 await dmWriter.FlushAsync().ConfigureAwait(false);
             }
         },
+        recursiveForDirectory: recursive,
         log: verbose ? static message => Console.Error.WriteLine($"[scanner] {message}") : null).ConfigureAwait(false);
 
         return 0;
+    }
+
+    private static bool TryParseRecursiveOption(string[] args, out bool recursive, out string? error)
+    {
+        recursive = true;
+        error = null;
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            var arg = args[i];
+            if (string.Equals(arg, "--recursive", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 >= args.Length)
+                {
+                    error = "Missing value for --recursive. Expected true or false.";
+                    return false;
+                }
+
+                if (!bool.TryParse(args[i + 1], out recursive))
+                {
+                    error = $"Invalid value for --recursive: {args[i + 1]}. Expected true or false.";
+                    return false;
+                }
+
+                i++;
+                continue;
+            }
+
+            const string Prefix = "--recursive=";
+            if (arg.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var value = arg.Substring(Prefix.Length);
+                if (!bool.TryParse(value, out recursive))
+                {
+                    error = $"Invalid value for --recursive: {value}. Expected true or false.";
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private static object BuildContractRow(ContractScanner.Core.Domain.Models.ScanResult result)

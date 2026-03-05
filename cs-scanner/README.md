@@ -16,8 +16,18 @@ C# scanner using Roslyn `MSBuildWorkspace` to extract:
 ## Build & Run
 
 ```bash
-dotnet run --project Cli/Cli.csproj -- <path/to/solution.sln|project.csproj> [--verbose]
+dotnet run --project Cli/Cli.csproj -- <path/to/solution.sln|project.csproj|directory> [--verbose] [--recursive true|false]
 ```
+
+Input modes:
+
+- `sln`: scan all projects in the solution.
+- `csproj`: scan a single project.
+- `directory`: scan `.cs` files directly from that directory.
+
+Directory mode options:
+
+- `--recursive true|false`: include subdirectories when scanning `.cs` files (default `true`).
 
 ## Outputs
 
@@ -41,4 +51,5 @@ Scanner writes two JSONL files at runtime working directory:
 
 - `Core/Application`: scan orchestration and workflow (`ContractScanner`)
 - `Core/Domain/Models`: scanner output models (`ScanResult`, `DataMemberInfo`, `EnumMemberInfo`)
+- `Core/Infrastructure/InputDiscovery`: input path discovery (`ScanInputResolver`)
 - `Core/Infrastructure/Roslyn`: Roslyn-based symbol parsing and collectors
