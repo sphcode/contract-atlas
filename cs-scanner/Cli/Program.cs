@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using CoreScanner = ContractScanner.Core.Application.ContractScanner;
-using Microsoft.Build.Locator;
 
 namespace ContractScanner.Cli;
 
@@ -35,11 +34,6 @@ public static class Program
         {
             Console.Error.WriteLine($"Input path not found: {inputPath}");
             return 2;
-        }
-
-        if (!MSBuildLocator.IsRegistered)
-        {
-            MSBuildLocator.RegisterDefaults();
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");

@@ -1,6 +1,6 @@
 # Contract Scanner (Roslyn)
 
-C# scanner using Roslyn `MSBuildWorkspace` to extract:
+C# scanner using Roslyn syntax model (`CSharpSyntaxTree`) to extract:
 
 - `ServiceContract` types
 - `DataContract` types
@@ -10,8 +10,7 @@ C# scanner using Roslyn `MSBuildWorkspace` to extract:
 
 ## NuGet packages
 
-- `Microsoft.CodeAnalysis.CSharp.Workspaces`
-- `Microsoft.Build.Locator`
+- `Microsoft.CodeAnalysis.CSharp`
 
 ## Build & Run
 
@@ -21,8 +20,8 @@ dotnet run --project Cli/Cli.csproj -- <path/to/solution.sln|project.csproj|dire
 
 Input modes:
 
-- `sln`: scan all projects in the solution.
-- `csproj`: scan a single project.
+- `sln`: discover `.csproj` entries from solution file, then scan `.cs` files under each project directory.
+- `csproj`: scan `.cs` files under project directory.
 - `directory`: scan `.cs` files directly from that directory.
 
 Directory mode options:
@@ -52,4 +51,4 @@ Scanner writes two JSONL files at runtime working directory:
 - `Core/Application`: scan orchestration and workflow (`ContractScanner`)
 - `Core/Domain/Models`: scanner output models (`ScanResult`, `DataMemberInfo`, `EnumMemberInfo`)
 - `Core/Infrastructure/InputDiscovery`: input path discovery (`ScanInputResolver`)
-- `Core/Infrastructure/Roslyn`: Roslyn-based symbol parsing and collectors
+- `Core/Infrastructure/Roslyn`: Roslyn syntax parsing (`SyntaxContractExtractor`)
