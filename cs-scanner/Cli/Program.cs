@@ -27,8 +27,9 @@ public static class Program
         }
 
         // Hardcoded output paths (JSONL)
-        var outputPath = Path.GetFullPath("contracts.jsonl");
-        var dataMembersPath = Path.GetFullPath("data-members.jsonl");
+        var outputDirectory = Path.GetFullPath("output");
+        var outputPath = Path.Combine(outputDirectory, "contracts.jsonl");
+        var dataMembersPath = Path.Combine(outputDirectory, "data-members.jsonl");
 
         if (!File.Exists(inputPath) && !Directory.Exists(inputPath))
         {
@@ -36,8 +37,7 @@ public static class Program
             return 2;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
-        Directory.CreateDirectory(Path.GetDirectoryName(dataMembersPath) ?? ".");
+        Directory.CreateDirectory(outputDirectory);
 
         await using var outStream = new FileStream(
             outputPath,
