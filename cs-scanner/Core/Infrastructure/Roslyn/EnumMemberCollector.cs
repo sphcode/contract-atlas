@@ -1,7 +1,8 @@
 using System.Collections.Generic;
+using ContractScanner.Core.Domain.Models;
 using Microsoft.CodeAnalysis;
 
-namespace ContractScanner.Core;
+namespace ContractScanner.Core.Infrastructure.Roslyn;
 
 internal static class EnumMemberCollector
 {

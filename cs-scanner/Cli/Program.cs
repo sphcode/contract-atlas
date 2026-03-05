@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using CoreScanner = ContractScanner.Core.ContractScanner;
+using CoreScanner = ContractScanner.Core.Application.ContractScanner;
 using Microsoft.Build.Locator;
 
 namespace ContractScanner.Cli;

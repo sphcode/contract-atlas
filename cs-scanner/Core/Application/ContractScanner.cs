@@ -4,12 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ContractScanner.Core.Domain.Models;
+using ContractScanner.Core.Infrastructure.Roslyn;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 
-namespace ContractScanner.Core;
+namespace ContractScanner.Core.Application;
 
 public sealed class ContractScanner
 {

@@ -34,3 +34,9 @@ Scanner writes two JSONL files at runtime working directory:
 `data-members.jsonl` rows (only `DataContract`):
 
 - `{"type":"DataContract","name":"Namespace.MyDto","dataMembers":[{"name":"Id","type":"int"}]}`
+
+## Layered Structure
+
+- `Core/Application`: scan orchestration and workflow (`ContractScanner`)
+- `Core/Domain/Models`: scanner output models (`ScanResult`, `DataMemberInfo`, `EnumMemberInfo`)
+- `Core/Infrastructure/Roslyn`: Roslyn-based symbol parsing and collectors

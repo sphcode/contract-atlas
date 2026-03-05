@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using ContractScanner.Core.Domain.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace ContractScanner.Core;
+namespace ContractScanner.Core.Infrastructure.Roslyn;
 
 internal static class DataMemberCollector
 {
