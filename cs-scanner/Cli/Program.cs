@@ -63,18 +63,7 @@ public static class Program
         var scanner = new CoreScanner();
         await scanner.ScanAsync(inputPath, async result =>
         {
-            object contractRow = result.EnumMembers is { Length: > 0 }
-                ? new
-                {
-                    type = result.Type,
-                    name = result.Name,
-                    enumMembers = result.EnumMembers.Select(static m => new { name = m.Name, value = m.Value })
-                }
-                : new
-                {
-                    type = result.Type,
-                    name = result.Name
-                };
+            object contractRow = BuildContractRow(result);
             var json = JsonSerializer.Serialize(contractRow);
             await outWriter.WriteLineAsync(json).ConfigureAwait(false);
             await outWriter.FlushAsync().ConfigureAwait(false);
@@ -94,5 +83,48 @@ public static class Program
         log: verbose ? static message => Console.Error.WriteLine($"[scanner] {message}") : null).ConfigureAwait(false);
 
         return 0;
+    }
+
+    private static object BuildContractRow(ContractScanner.Core.Domain.Models.ScanResult result)
+    {
+        if (result.EnumMembers is { Length: > 0 })
+        {
+            return new
+            {
+                type = result.Type,
+                name = result.Name,
+                enumMembers = result.EnumMembers.Select(static m => new { name = m.Name, value = m.Value })
+            };
+        }
+
+        if (result.OperationContracts is { Length: > 0 })
+        {
+            return new
+            {
+                type = result.Type,
+                name = result.Name,
+                operationContracts = result.OperationContracts.Select(static op => new
+                {
+                    name = op.Name,
+                    returnType = op.ReturnType,
+                    effectiveReturnType = op.EffectiveReturnType,
+                    isOneWay = op.IsOneWay,
+                    parameters = op.Parameters.Select(static p => new
+                    {
+                        name = p.Name,
+                        type = p.Type,
+                        isOut = p.IsOut,
+                        isRef = p.IsRef,
+                        isOptional = p.IsOptional
+                    })
+                })
+            };
+        }
+
+        return new
+        {
+            type = result.Type,
+            name = result.Name
+        };
     }
 }

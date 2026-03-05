@@ -135,7 +135,8 @@ public sealed class ContractScanner
 
                 var membersArray = DataMemberCollector.CollectMembers(matchedType, namedType);
                 var enumMembers = EnumMemberCollector.Collect(namedType);
-                await onResult(new ScanResult(matchedType, name, membersArray, enumMembers)).ConfigureAwait(false);
+                var operationContracts = ServiceContractOperationCollector.CollectOperations(matchedType, namedType);
+                await onResult(new ScanResult(matchedType, name, membersArray, enumMembers, operationContracts)).ConfigureAwait(false);
                 matches++;
             }
         }

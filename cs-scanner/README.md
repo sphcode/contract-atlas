@@ -6,6 +6,7 @@ C# scanner using Roslyn `MSBuildWorkspace` to extract:
 - `DataContract` types
 - `DataMember` fields/properties with CLR type
 - `enum` definitions with member values
+- `OperationContract` methods (name, parameters, return type)
 
 ## NuGet packages
 
@@ -30,6 +31,7 @@ Scanner writes two JSONL files at runtime working directory:
 - `{"type":"ServiceContract","name":"Namespace.IMyService"}`
 - `{"type":"DataContract","name":"Namespace.MyDto"}`
 - `{"type":"Enum","name":"Namespace.Status","enumMembers":[{"name":"Active","value":"1"}]}`
+- `{"type":"ServiceContract","name":"Namespace.IMyService","operationContracts":[{"name":"Ping","returnType":"Task<string>","effectiveReturnType":"string","isOneWay":false,"parameters":[{"name":"id","type":"int","isOut":false,"isRef":false,"isOptional":false}]}]}`
 
 `data-members.jsonl` rows (only `DataContract`):
 
