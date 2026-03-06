@@ -1,0 +1,9 @@
+[project]
+name = "contract-atlas"
+version = "0.1.0"
+description = "ContractAtlas OpenAPI generation pipeline"
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

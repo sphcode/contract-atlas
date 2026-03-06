@@ -1,0 +1,1 @@
+"""ContractAtlas Python package."""
