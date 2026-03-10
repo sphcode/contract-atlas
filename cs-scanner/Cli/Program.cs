@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using CoreScanner = ContractScanner.Core.Application.ContractScanner;
 
@@ -10,6 +11,11 @@ namespace ContractScanner.Cli;
 
 public static class Program
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     public static async Task<int> Main(string[] args)
     {
         if (args.Length < 1)
@@ -63,7 +69,7 @@ public static class Program
         await scanner.ScanAsync(inputPath, async result =>
         {
             object contractRow = BuildContractRow(result);
-            var json = JsonSerializer.Serialize(contractRow);
+            var json = JsonSerializer.Serialize(contractRow, JsonOptions);
             await outWriter.WriteLineAsync(json).ConfigureAwait(false);
             await outWriter.FlushAsync().ConfigureAwait(false);
 
@@ -74,7 +80,7 @@ public static class Program
                     type = result.Type,
                     name = result.Name,
                     dataMembers = result.DataMembers.Select(static m => new { name = m.Name, type = m.Type })
-                });
+                }, JsonOptions);
                 await dmWriter.WriteLineAsync(dmJson).ConfigureAwait(false);
                 await dmWriter.FlushAsync().ConfigureAwait(false);
             }
