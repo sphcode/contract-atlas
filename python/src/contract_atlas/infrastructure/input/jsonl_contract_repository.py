@@ -23,6 +23,9 @@ class JsonlContractRepository:
             raise FileNotFoundError(f"data-members file not found: {data_members_path}")
 
         snapshot = ContractSnapshot()
+        service_operations: dict[str, dict[str, OperationContract]] = {}
+        data_members: dict[str, dict[str, DataMember]] = {}
+        enum_members: dict[str, dict[str, EnumMember]] = {}
 
         for row in self._read_jsonl(contracts_path):
             row_type = row.get("type")
@@ -31,12 +34,10 @@ class JsonlContractRepository:
                 continue
 
             if row_type == "ServiceContract":
-                snapshot.service_contracts.append(
-                    ServiceContract(
-                        name=name,
-                        operations=self._parse_operations(row.get("operationContracts")),
-                    )
-                )
+                operations = self._parse_operations(row.get("operationContracts"))
+                bucket = service_operations.setdefault(name, {})
+                for operation in operations:
+                    bucket[self._operation_key(operation)] = operation
                 continue
 
             if row_type == "DataContract":
@@ -44,10 +45,9 @@ class JsonlContractRepository:
                 continue
 
             if row_type == "Enum":
-                snapshot.enum_contracts[name] = EnumContract(
-                    name=name,
-                    members=self._parse_enum_members(row.get("enumMembers")),
-                )
+                bucket = enum_members.setdefault(name, {})
+                for member in self._parse_enum_members(row.get("enumMembers")):
+                    bucket[self._enum_member_key(member)] = member
 
         for row in self._read_jsonl(data_members_path):
             if row.get("type") != "DataContract":
@@ -57,10 +57,29 @@ class JsonlContractRepository:
             if not isinstance(name, str):
                 continue
 
-            members = self._parse_data_members(row.get("dataMembers"))
-            snapshot.data_contracts[name] = DataContract(name=name, members=members)
+            bucket = data_members.setdefault(name, {})
+            for member in self._parse_data_members(row.get("dataMembers")):
+                bucket[self._data_member_key(member)] = member
 
-        snapshot.service_contracts.sort(key=lambda item: item.name)
+        for name, members in data_members.items():
+            snapshot.data_contracts[name] = DataContract(
+                name=name,
+                members=tuple(sorted(members.values(), key=lambda item: item.name)),
+            )
+
+        for name, members in enum_members.items():
+            snapshot.enum_contracts[name] = EnumContract(
+                name=name,
+                members=tuple(sorted(members.values(), key=lambda item: item.name)),
+            )
+
+        snapshot.service_contracts = [
+            ServiceContract(
+                name=name,
+                operations=tuple(sorted(operations.values(), key=lambda item: item.name)),
+            )
+            for name, operations in sorted(service_operations.items(), key=lambda pair: pair[0])
+        ]
         return snapshot
 
     @staticmethod
@@ -82,30 +101,43 @@ class JsonlContractRepository:
     @staticmethod
     def _parse_data_members(raw_members: object) -> tuple[DataMember, ...]:
         members: list[DataMember] = []
+        seen: set[str] = set()
         for item in raw_members or []:
             if not isinstance(item, dict):
                 continue
             name = item.get("name")
             type_name = item.get("type")
             if isinstance(name, str) and isinstance(type_name, str):
-                members.append(DataMember(name=name, type_name=type_name))
+                member = DataMember(name=name, type_name=type_name)
+                key = JsonlContractRepository._data_member_key(member)
+                if key in seen:
+                    continue
+                seen.add(key)
+                members.append(member)
         return tuple(members)
 
     @staticmethod
     def _parse_enum_members(raw_members: object) -> tuple[EnumMember, ...]:
         members: list[EnumMember] = []
+        seen: set[str] = set()
         for item in raw_members or []:
             if not isinstance(item, dict):
                 continue
             name = item.get("name")
             value = item.get("value")
             if isinstance(name, str) and isinstance(value, str):
-                members.append(EnumMember(name=name, value=value))
+                member = EnumMember(name=name, value=value)
+                key = JsonlContractRepository._enum_member_key(member)
+                if key in seen:
+                    continue
+                seen.add(key)
+                members.append(member)
         return tuple(members)
 
     @staticmethod
     def _parse_operations(raw_operations: object) -> tuple[OperationContract, ...]:
         operations: list[OperationContract] = []
+        seen: set[str] = set()
         for op in raw_operations or []:
             if not isinstance(op, dict):
                 continue
@@ -148,14 +180,33 @@ class JsonlContractRepository:
                         )
                     )
 
-            operations.append(
-                OperationContract(
-                    name=name,
-                    return_type=return_type,
-                    effective_return_type=effective_return_type,
-                    is_one_way=is_one_way,
-                    parameters=tuple(params),
-                )
+            operation = OperationContract(
+                name=name,
+                return_type=return_type,
+                effective_return_type=effective_return_type,
+                is_one_way=is_one_way,
+                parameters=tuple(params),
             )
+            key = JsonlContractRepository._operation_key(operation)
+            if key in seen:
+                continue
+            seen.add(key)
+            operations.append(operation)
 
         return tuple(operations)
+
+    @staticmethod
+    def _data_member_key(item: DataMember) -> str:
+        return f"{item.name}|{item.type_name}"
+
+    @staticmethod
+    def _enum_member_key(item: EnumMember) -> str:
+        return f"{item.name}|{item.value}"
+
+    @staticmethod
+    def _operation_key(item: OperationContract) -> str:
+        params = ",".join(
+            f"{p.name}:{p.type_name}:{p.is_out}:{p.is_ref}:{p.is_optional}"
+            for p in item.parameters
+        )
+        return f"{item.name}|{item.return_type}|{item.effective_return_type}|{item.is_one_way}|{params}"

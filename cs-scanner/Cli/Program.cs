@@ -41,7 +41,7 @@ public static class Program
 
         await using var outStream = new FileStream(
             outputPath,
-            FileMode.Create,
+            FileMode.Append,
             FileAccess.Write,
             FileShare.Read,
             bufferSize: 4096,
@@ -51,7 +51,7 @@ public static class Program
 
         await using var dmStream = new FileStream(
             dataMembersPath,
-            FileMode.Create,
+            FileMode.Append,
             FileAccess.Write,
             FileShare.Read,
             bufferSize: 4096,
