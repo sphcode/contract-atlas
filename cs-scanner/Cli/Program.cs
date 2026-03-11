@@ -44,6 +44,8 @@ public static class Program
         }
 
         Directory.CreateDirectory(outputDirectory);
+        await EnsureTrailingNewlineAsync(outputPath).ConfigureAwait(false);
+        await EnsureTrailingNewlineAsync(dataMembersPath).ConfigureAwait(false);
 
         await using var outStream = new FileStream(
             outputPath,
@@ -130,6 +132,37 @@ public static class Program
         }
 
         return true;
+    }
+
+    private static async Task EnsureTrailingNewlineAsync(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            bufferSize: 1,
+            useAsync: true);
+
+        if (stream.Length == 0)
+        {
+            return;
+        }
+
+        stream.Seek(-1, SeekOrigin.End);
+        var lastByte = stream.ReadByte();
+        if (lastByte == '\n')
+        {
+            return;
+        }
+
+        stream.Seek(0, SeekOrigin.End);
+        await stream.WriteAsync(new byte[] { (byte)'\n' }).ConfigureAwait(false);
     }
 
     private static object BuildContractRow(ContractScanner.Core.Domain.Models.ScanResult result)
